@@ -1,7 +1,8 @@
 from fastapi import APIRouter, status, HTTPException
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
-from .models import User, UserCreate, UserResponse
+from .models import User
+from .schema import UserCreate, UserResponse
 
 router = APIRouter(prefix="/users")
 

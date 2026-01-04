@@ -1,23 +1,66 @@
-# from fastapi import APIRouter, HTTPException
-# from .models import EventCreate, EventResponse, Event
-# from uuid import UUID
+from fastapi import APIRouter, status, HTTPException
+from sqlalchemy.orm import Session
+from app.database import SessionLocal
+from .models import Event
+from .schema import EventCreate, EventResponse
 
-# router = APIRouter()
-# eventdb = {}
+router = APIRouter(prefix="/events")
 
-# @router.post("/events/", response_model=EventResponse, status_code=201)
-# def create_event(event: EventCreate):
-#     new_event = Event(**event.dict())
-#     eventdb[new_event.id] = new_event
-#     return EventResponse(id=new_event.id, title=new_event.title, date=new_event.date, capacity=new_event.capacity)
+@router.post("/", status_code=status.HTTP_201_CREATED, response_model=EventResponse)
+def create_event(event: EventCreate):
+    db: Session = SessionLocal()
 
-# @router.get("/events/{event_id}", response_model=EventResponse)
-# def get_event(event_id: UUID):
-#     event = eventdb.get(event_id)
-#     if not event:
-#         raise HTTPException(status_code=404, detail="Event not found")
-#     return EventResponse(id=event.id, title=event.title, date=event.date, capacity=event.capacity)
+    db_event = Event(
+        title=event.title,
+        date=event.date,
+        capacity=event.capacity,
+        organizer_id=event.organizer_id
+    )
+    db.add(db_event)
+    db.commit()
+    db.refresh(db_event)
+    db.close()
+    return EventResponse(
+        id=db_event.id,
+        title=db_event.title,
+        date=db_event.date,
+        capacity=db_event.capacity,
+        organizer_id=db_event.organizer_id
+    )
 
-# @router.get("/events/", response_model=list[EventResponse])
-# def list_events():
-#     return [EventResponse(id=event.id, title=event.title, date=event.date, capacity=event.capacity) for event in eventdb.values()]
+@router.get("/", response_model=list[EventResponse])
+def get_all_events():
+    db: Session = SessionLocal() # Create a new database session
+
+    try:
+        events = db.query(Event).all()
+
+        return [EventResponse(
+            id=event.id,
+            title=event.title,
+            date=event.date,
+            capacity=event.capacity,
+            organizer_id=event.organizer_id
+        ) for event in events] # Convert each Event to EventResponse and return the list of each EventResponse
+    finally:
+        db.close()
+
+@router.get("/{event_id}", response_model=EventResponse)
+def get_event(event_id):
+    db: Session = SessionLocal()
+
+    try:
+        event = db.query(Event).filter(Event.id == event_id).first() # Get the event with the specified ID using the filter method
+        
+        if not event:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+
+        return EventResponse(
+            id=event.id,
+            title=event.title,
+            date=event.date,
+            capacity=event.capacity,
+            organizer_id=event.organizer_id
+        )
+    finally:
+        db.close()
