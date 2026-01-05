@@ -95,7 +95,7 @@ This is how the suer responds to an Event. Core Logic here is that we create a m
 | status   | going / maybe / not_going |
 
 
-**Logic:**
+### Logic:
 
 ***RSVP POST Logic***
 - The exact resource been acted upon is the Event while RSVP is action being carried out on this event.
