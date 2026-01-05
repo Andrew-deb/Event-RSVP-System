@@ -59,6 +59,7 @@ def get_event(event_id):
             id=event.id,
             title=event.title,
             date=event.date,
+            current_capacity=event.current_capacity,
             capacity=event.capacity,
             organizer_id=event.organizer_id
         )

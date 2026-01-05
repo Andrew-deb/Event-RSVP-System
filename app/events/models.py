@@ -10,5 +10,6 @@ class Event(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     title = Column(String, nullable=False)
     date = Column(DateTime, nullable=False)
-    capacity = Column(Integer)
+    capacity = Column(Integer, nullable=True) # nullable is set to True since event may or may not have a limit
+    current_capacity = Column(Integer, default=0)  # Track current number of "going" RSVPs
     organizer_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
