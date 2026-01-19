@@ -1,0 +1,12 @@
+{
+  "id": 1,
+  "title": "Tech Meetup",
+  "date": "2026-03-10",
+  "location": "Winnipeg",
+  "rsvps": [
+    {
+      "guest_name": "Mary",
+      "response": "yes"
+    }
+  ]
+}
