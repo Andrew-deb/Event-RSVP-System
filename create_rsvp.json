@@ -1,0 +1,5 @@
+POST /events/1/rsvp
+{
+  "guest_name": "Mary",
+  "response": "yes"
+}
