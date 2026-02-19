@@ -1,3 +1,7 @@
 sqlalchemy
 fastapi[all]
 psycopg2-binary
+pytest
+pytest-asyncio
+httpx
+python-dotenv
