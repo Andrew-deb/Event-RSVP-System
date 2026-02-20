@@ -1,12 +1,12 @@
 # The schema file is used to define the structure of API inputs (User, UserCreate, UserUpdate) and outputs (UserResponse).
 # It uses Pydantic models to ensure data validation and serialization.
 
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from uuid import UUID
 
 class UserCreate(BaseModel):
     username: str
-    email: str
+    email: EmailStr
     password: str
 
 class UserResponse(BaseModel):

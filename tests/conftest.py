@@ -1,13 +1,10 @@
-"""
-Test configuration and fixtures for the Event RSVP System.
-
-This module provides reusable test fixtures including:
-- Test client for API testing
-- Test database session
-- Sample data fixtures
-"""
-
 import os
+import sys
+# Add project root to Python path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+
 import pytest
 from uuid import uuid4
 from datetime import datetime, timedelta
@@ -16,18 +13,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-# Set test database URL before importing app
-os.environ["DATABASE_URL"] = "sqlite:///:memory:"
-
-from app.database import Base
+from app.database import Base, get_db
 from app.main import app
-from app.users.models import User
-from app.events.models import Event
-from app.rsvps.models import RSVP
-from app.database import SessionLocal
 
-
-# Create in-memory SQLite database for testing
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 
 engine = create_engine(
@@ -39,7 +27,6 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 
 
 def override_get_db():
-    """Override database dependency for testing."""
     db = TestingSessionLocal()
     try:
         yield db
@@ -48,8 +35,7 @@ def override_get_db():
 
 
 @pytest.fixture(scope="function")
-def db_session():
-    """Create a fresh database session for each test."""
+def db():
     Base.metadata.create_all(bind=engine)
     db = TestingSessionLocal()
     try:
@@ -60,62 +46,38 @@ def db_session():
 
 
 @pytest.fixture(scope="function")
-def client(db_session):
-    """Create a test client with overridden database."""
-    from app.database import SessionLocal
-    
-    # Override the get_db dependency
-    from app.main import app
-    app.dependency_overrides[SessionLocal] = override_get_db
-    
+def client(db):
+    app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as test_client:
         yield test_client
-    
     app.dependency_overrides.clear()
 
 
 @pytest.fixture
-def sample_user(db_session):
-    """Create a sample user for testing."""
-    user = User(
-        id=uuid4(),
-        username="testuser",
-        email="test@example.com",
-        password="hashedpassword"
-    )
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
+def sample_user(db):
+    from app.users.models import User
+    user = User(id=uuid4(), username="testuser", email="test@example.com", password="hashedpassword")
+    db.add(user)
+    db.commit()
+    db.refresh(user)
     return user
 
 
 @pytest.fixture
-def sample_event(db_session, sample_user):
-    """Create a sample event for testing."""
-    event = Event(
-        id=uuid4(),
-        title="Test Event",
-        date=datetime.now() + timedelta(days=7),
-        capacity=10,
-        current_capacity=0,
-        organizer_id=sample_user.id
-    )
-    db_session.add(event)
-    db_session.commit()
-    db_session.refresh(event)
+def sample_event(db, sample_user):
+    from app.events.models import Event
+    event = Event(id=uuid4(), title="Test Event", date=datetime.now() + timedelta(days=7), capacity=10, current_capacity=0, organizer_id=sample_user.id)
+    db.add(event)
+    db.commit()
+    db.refresh(event)
     return event
 
 
 @pytest.fixture
-def sample_rsvp(db_session, sample_user, sample_event):
-    """Create a sample RSVP for testing."""
-    rsvp = RSVP(
-        id=uuid4(),
-        user_id=sample_user.id,
-        event_id=sample_event.id,
-        status="going"
-    )
-    db_session.add(rsvp)
-    db_session.commit()
-    db_session.refresh(rsvp)
+def sample_rsvp(db, sample_user, sample_event):
+    from app.rsvps.models import RSVP
+    rsvp = RSVP(id=uuid4(), event_id=sample_event.id, name="Test User", email="test@example.com", status="going")
+    db.add(rsvp)
+    db.commit()
+    db.refresh(rsvp)
     return rsvp

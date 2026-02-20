@@ -3,17 +3,20 @@ from typing import Literal
 from uuid import UUID
 
 class RSVPCreate(BaseModel):
-    user_id: UUID
-    status: Literal["going", "not going", "maybe"]  # Input validation
+    name: str
+    email: str
 
 class RSVPUpdate(BaseModel):
-    user_id: UUID
+    name: str
+    email: str
     status: Literal["going", "maybe", "not_going"]
 
 class RSVPResponse(BaseModel):
     id: UUID
-    user_id: UUID
-    status: Literal["going", "not going", "maybe"]
+    event_id: UUID
+    name: str
+    email: str
+    status: str
 
     class Config:
         orm_mode = True

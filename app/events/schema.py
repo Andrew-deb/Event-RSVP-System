@@ -5,14 +5,18 @@ from typing import Optional
 
 class EventCreate(BaseModel):
     title: str
+    description: Optional[str] = None
     date: datetime
+    location: Optional[str] = None
     capacity: Optional[int] = None
     organizer_id: UUID
 
 class EventResponse(BaseModel):
     id: UUID
     title: str
+    description: Optional[str] = None
     date: datetime
+    location: Optional[str] = None
     capacity: Optional[int] = None
     organizer_id: UUID
 

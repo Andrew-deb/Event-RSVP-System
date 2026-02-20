@@ -1,32 +1,32 @@
-from fastapi import APIRouter, status, HTTPException
+from fastapi import APIRouter, status, HTTPException, Depends, Form
 from sqlalchemy.orm import Session
-from app.database import SessionLocal
-from .models import RSVP
-from .schema import RSVPCreate, RSVPResponse, RSVPUpdate
+from app.database import get_db
+from app.rsvps.models import RSVP
+from app.rsvps.schema import RSVPCreate, RSVPResponse, RSVPUpdate
 from app.events.models import Event
 from uuid import UUID
 
 router = APIRouter(prefix="/events")
 
-@router.post("/{event_id}/rsvps", response_model=RSVPResponse, status_code=status.HTTP_201_CREATED)
-def create_rsvp(event_id: UUID, rsvp: RSVPCreate):
-    db: Session = SessionLocal()
 
-    #Checking if the event exists
+@router.post("/{event_id}/rsvp", response_model=RSVPResponse, status_code=status.HTTP_201_CREATED)
+def create_rsvp(event_id: UUID, name: str = Form(...), email: str = Form(...), db: Session = Depends(get_db)):
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
     
-    # Check for existing RSVP for the same user and event
     existing_rsvp = db.query(RSVP).filter(
-        RSVP.user_id == rsvp.user_id,
+        RSVP.email == email,
         RSVP.event_id == event_id  
     ).first()
     if existing_rsvp:
-        raise HTTPException(status_code=400, detail="RSVP already exists for this user and event")
+        raise HTTPException(status_code=400, detail="RSVP already exists for this email and event")
     
-    # Capacity logic
-    if rsvp.status == "going" and event.capacity is not None:
+    # For simplicity, we set status as "going" by default when RSVPing
+    # The requirement only mentions name and email fields for RSVP
+    rsvp_status = "going"
+    
+    if event.capacity is not None:
         going_count = db.query(RSVP).filter(
             RSVP.event_id == event_id,
             RSVP.status == "going"
@@ -38,87 +38,82 @@ def create_rsvp(event_id: UUID, rsvp: RSVPCreate):
             db.add(event)
             db.commit()
 
-    db_rsvp = RSVP(user_id=rsvp.user_id, event_id=event_id, status=rsvp.status) # create new RSVP instance
+    db_rsvp = RSVP(event_id=event_id, name=name, email=email, status=rsvp_status)
     
     db.add(db_rsvp)
     db.commit()
     db.refresh(db_rsvp)
-    db.close()
     return RSVPResponse(
         id=db_rsvp.id,
-        user_id=db_rsvp.user_id,
         event_id=db_rsvp.event_id,
+        name=db_rsvp.name,
+        email=db_rsvp.email,
         status=db_rsvp.status
     )
 
-@router.get("/{event_id}/rsvps", response_model=list[RSVPResponse], status_code=status.HTTP_200_OK)
-def get_rsvps(event_id: UUID):
-    db : Session = SessionLocal()
 
-    try:
-        #Checking if the event exists
-        event = db.query(Event).filter(Event.id == event_id).first()
-        if not event:
-            raise HTTPException(status_code=404, detail="Event not found")
-        
-        #Get all RSVPs for a particular event
-        rspv = db.query(RSVP).filter(RSVP.event_id == event_id).all()
-    finally:
-        db.close()
+@router.get("/{event_id}/rsvps", response_model=list[RSVPResponse], status_code=status.HTTP_200_OK)
+def get_rsvps(event_id: UUID, db: Session = Depends(get_db)):
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    rsvps = db.query(RSVP).filter(RSVP.event_id == event_id).all()
 
     return [RSVPResponse(
         id=r.id,
-        user_id=r.user_id,
         event_id=r.event_id,
+        name=r.name,
+        email=r.email,
         status=r.status
-    ) for r in rspv]
+    ) for r in rsvps]
+
 
 @router.put("/{event_id}/rsvp", status_code=200)
-def update_rsvp(event_id: UUID, rsvp: RSVPUpdate):
-    db: Session = SessionLocal()
-    try:
-        #Check event exists
-        event = db.query(Event).filter(Event.id == event_id).first()
-        if not event:
-            raise HTTPException(status_code=404, detail="Event not found")
+def update_rsvp(event_id: UUID, name: str = Form(...), email: str = Form(...), status: str = Form(...), db: Session = Depends(get_db)):
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
 
-        #Find existing RSVP
-        existing_rsvp = db.query(RSVP).filter(
-            RSVP.user_id == rsvp.user_id,
-            RSVP.event_id == event_id
-        ).first()
+    existing_rsvp = db.query(RSVP).filter(
+        RSVP.email == email,
+        RSVP.event_id == event_id
+    ).first()
 
-        if not existing_rsvp:
+    if not existing_rsvp:
+        raise HTTPException(
+            status_code=404,
+            detail="RSVP does not exist"
+        )
+
+    if (
+        status == "going"
+        and existing_rsvp.status != "going"
+        and event.capacity is not None
+    ):
+        going_count = db.query(RSVP).filter(
+            RSVP.event_id == event_id,
+            RSVP.status == "going"
+        ).count()
+
+        if going_count >= event.capacity:
             raise HTTPException(
-                status_code=404,
-                detail="RSVP does not exist"
+                status_code=400,
+                detail="Event capacity reached"
             )
+        else:
+            event.current_capacity += 1
+            db.add(event)
+            db.commit()
 
-        #Capacity check (only if changing to 'going')
-        if (
-            rsvp.status == "going"
-            and existing_rsvp.status != "going"
-            and event.capacity is not None
-        ):
-            going_count = db.query(RSVP).filter(
-                RSVP.event_id == event_id,
-                RSVP.status == "going"
-            ).count()
-
-            if going_count >= event.capacity:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Event capacity reached"
-                )
-            else:
-                event.current_capacity += 1
-                db.add(event)
-                db.commit()
-
-        #Update status
-        existing_rsvp.status = rsvp.status
-        db.commit()
-        db.refresh(existing_rsvp)
-        return existing_rsvp
-    finally:
-        db.close()
+    existing_rsvp.name = name
+    existing_rsvp.status = status
+    db.commit()
+    db.refresh(existing_rsvp)
+    return RSVPResponse(
+        id=existing_rsvp.id,
+        event_id=existing_rsvp.event_id,
+        name=existing_rsvp.name,
+        email=existing_rsvp.email,
+        status=existing_rsvp.status
+    )
