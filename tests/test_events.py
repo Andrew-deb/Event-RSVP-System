@@ -40,3 +40,14 @@ def test_can_retrieve_specific_event_by_id(client, sample_event):
 def test_cannot_retrieve_nonexistent_event(client):
     response = client.get(f"/events/{str(uuid4())}")
     assert response.status_code == 404
+
+def test_organizer_cannot_create_event_with_invalid_date_format(client, sample_user):
+    response = client.post("/events/", data={"title": "Test Event", "date": "invalid-date", "organizer_id": str(sample_user.id)})
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid date format. Use ISO 8601 format."
+
+def test_organizer_cannot_create_event_with_invalid_uuid_format(client):
+
+    response = client.post("/events/", data={"title": "Test Event", "date": (datetime.now() + timedelta(days=30)).isoformat(), "organizer_id": "invalid-uuid"})
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid organizer_id format. Must be a valid UUID."
